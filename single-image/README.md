@@ -76,7 +76,7 @@ docker rm -f forgotten-server       # stop & remove
 
 ## Credentials / flags (same as the Compose lab)
 
-- PostgreSQL: `admin` / `123456`, database `cpr` — one citizen's firstname is a flag.
+- PostgreSQL: `admin` / `123456`, database `postgres` — one citizen's firstname is a flag.
 - FTP: anonymous login; `flag.txt` in the share; ProFTPD 1.3.5 is vulnerable to
   CVE-2015-3306 (`mod_copy` `SITE CPFR`/`CPTO`).
 - SSH: hardened decoy (`itadmin`, key-only, no password) — not the way in.

@@ -20,7 +20,7 @@ services:
     environment:
       POSTGRES_USER: admin
       POSTGRES_PASSWORD: "123456"
-      POSTGRES_DB: cpr
+      POSTGRES_DB: postgres
     ports:
       - "5432:5432"
     networks:

@@ -72,7 +72,7 @@ The database uses `admin` / `123456` and the port is exposed.
 
 ```bash
 # With psql
-PGPASSWORD=123456 psql -h <TARGET_IP> -U admin -d cpr -c \
+PGPASSWORD=123456 psql -h <TARGET_IP> -U admin -d postgres -c \
   "SELECT firstname, lastname, cpr FROM citizens;"
 ```
 
