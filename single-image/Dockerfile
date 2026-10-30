@@ -43,6 +43,7 @@ RUN set -eux; \
     apt-get install -y --no-install-recommends \
         postgresql-13 \
         openssh-server \
+        apache2 libapache2-mod-php \
         supervisor \
         build-essential ca-certificates curl libncurses-dev; \
     rm -rf /var/lib/apt/lists/*
@@ -92,6 +93,21 @@ RUN set -eux; \
     chmod -R u+rwX /srv/ftp
 
 # ---------------------------------------------------------------------------
+# Web server (Apache + PHP) - the second half of the RCE chain.
+#   - DocumentRoot /var/www/html is world-writable, so the unauthenticated
+#     ProFTPD mod_copy process can drop a PHP payload there...
+#   - ...which Apache then executes as www-data over HTTP (CVE-2015-3306 ->
+#     remote code execution, exactly what proftpd_modcopy_exec automates).
+#   - The flag lives OUTSIDE the document root, so it is not directly
+#     downloadable - you must execute code and read it as www-data.
+# ---------------------------------------------------------------------------
+COPY web/index.html /var/www/html/index.html
+COPY web/flag.txt /var/www/flag.txt
+RUN set -eux; \
+    chmod 777 /var/www/html; \
+    chmod 644 /var/www/html/index.html /var/www/flag.txt
+
+# ---------------------------------------------------------------------------
 # SSH: hardened config (host keys are generated on first start by supervisord).
 # ---------------------------------------------------------------------------
 COPY ssh-decoy/sshd_config /etc/ssh/sshd_config
@@ -115,6 +131,6 @@ RUN set -eux; \
 # ---------------------------------------------------------------------------
 COPY single-image/supervisord.conf /etc/supervisor/conf.d/forgotten.conf
 
-EXPOSE 21 22 5432 30000-30009
+EXPOSE 21 22 80 5432 30000-30009
 
 CMD ["/usr/bin/supervisord", "-n", "-c", "/etc/supervisor/supervisord.conf"]

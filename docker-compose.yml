@@ -2,11 +2,16 @@
 # "The Forgotten Server" - intentionally vulnerable lab (Ethical Hacking course)
 #
 # Represents one neglected hospital server exposing several network services.
-# Three services share one network so an attacker scanning the host sees them
-# all on the same IP:
-#   - cpr-register : PostgreSQL  (weak credentials)            -> host port 5432
+# All services share one network so an attacker scanning the host sees them on
+# the same IP:
+#   - cpr-register : PostgreSQL (weak credentials)             -> host port 5432
 #   - ftp-server   : ProFTPD 1.3.5, CVE-2015-3306 (mod_copy)   -> host port 21 (+ passive 30000-30009)
+#   - web          : Apache + PHP intranet                     -> host port 80
 #   - ssh-decoy    : hardened OpenSSH (the red herring)        -> host port 2222
+#
+# ftp-server and web share the 'webroot' volume: the unauthenticated mod_copy
+# flaw lets an attacker drop a PHP payload into the web root, which Apache then
+# executes -> remote code execution (Metasploit proftpd_modcopy_exec).
 #
 # DO NOT expose this to the public internet. Run it only on an isolated lab
 # network / host that you control.
@@ -27,13 +32,29 @@ services:
       - forgotten-net
     restart: unless-stopped
 
+  web:
+    build: ./web
+    image: forgotten/web
+    container_name: web
+    ports:
+      - "80:80"
+    volumes:
+      - webroot:/var/www/html
+    networks:
+      - forgotten-net
+    restart: unless-stopped
+
   ftp-server:
     build: ./ftp-server
     image: forgotten/ftp-server
     container_name: ftp-server
+    depends_on:
+      - web            # web initialises the shared webroot (perms + landing page)
     ports:
       - "21:21"
       - "30000-30009:30000-30009"   # passive data ports
+    volumes:
+      - webroot:/var/www/html        # same web root mod_copy writes payloads into
     networks:
       - forgotten-net
     restart: unless-stopped
@@ -47,6 +68,9 @@ services:
     networks:
       - forgotten-net
     restart: unless-stopped
+
+volumes:
+  webroot:
 
 networks:
   forgotten-net:

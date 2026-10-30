@@ -42,6 +42,7 @@ docker load -i forgotten-server.tar          # or: docker load -i forgotten-serv
 # run it — all services in one container
 docker run -d --name forgotten-server \
   -p 21:21 \
+  -p 80:80 \
   -p 2222:22 \
   -p 5432:5432 \
   -p 30000-30009:30000-30009 \
@@ -53,6 +54,7 @@ Now reachable on the host:
 | Service      | Host port              |
 |--------------|------------------------|
 | FTP          | `21` (+ `30000-30009`) |
+| Intranet (HTTP) | `80`                |
 | SSH (decoy)  | `2222`                 |
 | PostgreSQL   | `5432`                 |
 
@@ -67,7 +69,7 @@ Now reachable on the host:
 ## Manage / reset
 
 ```bash
-docker logs -f forgotten-server     # watch all three services
+docker logs -f forgotten-server     # watch all services
 docker rm -f forgotten-server       # stop & remove
 
 # The data (and flag) are baked into the image, so a fresh `docker run`
@@ -77,6 +79,11 @@ docker rm -f forgotten-server       # stop & remove
 ## Credentials / flags (same as the Compose lab)
 
 - PostgreSQL: `admin` / `123456`, database `postgres` — one citizen's firstname is a flag.
-- FTP: anonymous login; `flag.txt` in the share; ProFTPD 1.3.5 is vulnerable to
-  CVE-2015-3306 (`mod_copy` `SITE CPFR`/`CPTO`).
+- FTP: **anonymous login disabled**. ProFTPD 1.3.5 is vulnerable to CVE-2015-3306
+  (`mod_copy` `SITE CPFR`/`CPTO`, usable *before* login). The web DocumentRoot
+  (`/var/www/html`) is writable by the FTP process, so you can drop a PHP shell
+  and execute it over HTTP → RCE (Metasploit `proftpd_modcopy_exec`). The flag
+  is at `/var/www/flag.txt`, readable only after you get a shell.
 - SSH: hardened decoy (`itadmin`, key-only, no password) — not the way in.
+
+See [`../SOLUTION.md`](../SOLUTION.md) for the full exploit walkthrough.

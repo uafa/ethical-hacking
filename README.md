@@ -21,10 +21,11 @@ Once started, the following are reachable on the Docker host:
 |----------------|-----------------------|----------------------------------------------|
 | CPR-Register   | `5432`                | PostgreSQL citizen database                  |
 | File server    | `21` (+ `30000-30009`)| FTP server for internal documents            |
+| Intranet       | `80`                  | Internal web portal                          |
 | Remote admin   | `2222`                | SSH service                                  |
 
-All three run as containers on one Docker network, so from the outside they
-look like one host exposing several ports.
+They run as containers on one Docker network, so from the outside they look
+like one host exposing several ports.
 
 ---
 
@@ -42,7 +43,7 @@ From this folder:
 # Build the images and start everything (first build takes a few minutes)
 docker compose up -d --build
 
-# Check that all three containers are healthy
+# Check that the containers are healthy
 docker compose ps
 
 # Follow logs if you want to watch connections
@@ -79,8 +80,9 @@ fingerprint the services, and work out what is exploitable.
 
 **Primary objectives — capture both flags:**
 
-1. 🚩 **`FLAG{...}` on the file server** — there is a `flag.txt` somewhere on
-   the FTP service. Get it.
+1. 🚩 **`FLAG{...}` on the server** — gain **remote code execution** on the box
+   and read a flag file that is *not* reachable over the network directly. (FTP
+   login is locked down — but the FTP software itself is the way in.)
 2. 🚩 **`FLAG{...}` in the CPR-Register** — one of the registered citizens has a
    very strange first name. Read the database and find it.
 
@@ -89,18 +91,21 @@ fingerprint the services, and work out what is exploitable.
 - [ ] Discover the open ports and **identify the software and versions** running.
 - [ ] Identify **which service is outdated / vulnerable** and which is a decoy.
 - [ ] Exploit an **authentication/credential/permission weakness** to get in.
-- [ ] Achieve **unauthorized file access (read/write) on the server** via the
-      vulnerable service — not just an anonymous directory listing.
+- [ ] Achieve **remote code execution** by chaining the vulnerable service with
+      another exposed service on the host.
 - [ ] Access the **citizen data** in the database.
 - [ ] **Capture the exploit in network traffic** (e.g. Wireshark/tcpdump) and
-      explain what an analyst would see. Two of the three services send
-      everything in clear text — one does not.
+      explain what an analyst would see. Most of these services send everything
+      in clear text — one does not.
 
 **Hints (use only if stuck):**
 
 - Not every open port is a way in. One service is properly locked down — don't
   waste the whole exercise brute-forcing it.
-- Version banners matter. Look up the exact version you fingerprint.
+- Version banners matter. Look up the exact version you fingerprint — there is a
+  well-known Metasploit module for it.
+- A write primitive is only useful if you can reach what you wrote. Notice which
+  *other* service shares the filesystem.
 - "Weak admin credentials" is not just a cliché.
 
 The full walkthrough / answer key lives in [`SOLUTION.md`](./SOLUTION.md) —

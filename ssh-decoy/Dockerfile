@@ -8,7 +8,16 @@ FROM debian:bullseye-slim
 
 ENV DEBIAN_FRONTEND=noninteractive
 
+# Pin apt to a frozen snapshot over HTTP (consistent/reproducible, and avoids
+# dead mirrors / TLS-intercepting proxies).
+ARG SNAPSHOT=20260901T000000Z
 RUN set -eux; \
+    { \
+      echo "deb http://snapshot.debian.org/archive/debian/${SNAPSHOT}/ bullseye main"; \
+      echo "deb http://snapshot.debian.org/archive/debian-security/${SNAPSHOT}/ bullseye-security main"; \
+      echo "deb http://snapshot.debian.org/archive/debian/${SNAPSHOT}/ bullseye-updates main"; \
+    } > /etc/apt/sources.list; \
+    printf 'Acquire::Check-Valid-Until "false";\nAcquire::Retries "5";\n' > /etc/apt/apt.conf.d/80-snapshot; \
     apt-get update; \
     apt-get install -y --no-install-recommends openssh-server; \
     rm -rf /var/lib/apt/lists/*; \

