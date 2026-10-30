@@ -19,13 +19,26 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PGBIN=/usr/lib/postgresql/13/bin
 
 # Pinned, unpatched upstream ProFTPD 1.3.5 (see ftp-server/Dockerfile for notes).
-ARG PROFTPD_URL=https://snapshot.debian.org/file/7eef9570efe6c82c47b76163162432b9ba37f81d
+# HTTP (not HTTPS): the corporate TLS-intercepting proxy breaks cert validation
+# inside the build; integrity is still guaranteed by the SHA1 check below.
+ARG PROFTPD_URL=http://snapshot.debian.org/file/7eef9570efe6c82c47b76163162432b9ba37f81d
 ARG PROFTPD_SHA1=7eef9570efe6c82c47b76163162432b9ba37f81d
 
 # ---------------------------------------------------------------------------
 # Packages: database, ssh, process supervisor, and the toolchain to build FTP.
 # ---------------------------------------------------------------------------
+# The live bullseye mirrors are mid-point-release and the pool 404s packages
+# the base image still references. Pin apt to a frozen snapshot.debian.org
+# timestamp so index and pool are guaranteed consistent and reproducible for
+# whoever rebuilds this image later.
+ARG SNAPSHOT=20260901T000000Z
 RUN set -eux; \
+    { \
+      echo "deb http://snapshot.debian.org/archive/debian/${SNAPSHOT}/ bullseye main"; \
+      echo "deb http://snapshot.debian.org/archive/debian-security/${SNAPSHOT}/ bullseye-security main"; \
+      echo "deb http://snapshot.debian.org/archive/debian/${SNAPSHOT}/ bullseye-updates main"; \
+    } > /etc/apt/sources.list; \
+    printf 'Acquire::Check-Valid-Until "false";\nAcquire::Retries "5";\n' > /etc/apt/apt.conf.d/80-snapshot; \
     apt-get update; \
     apt-get install -y --no-install-recommends \
         postgresql-13 \
