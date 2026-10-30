@@ -1,0 +1,53 @@
+# ---------------------------------------------------------------------------
+# "The Forgotten Server" - intentionally vulnerable lab (Ethical Hacking course)
+#
+# Represents one neglected hospital server exposing several network services.
+# Three services share one network so an attacker scanning the host sees them
+# all on the same IP:
+#   - cpr-register : PostgreSQL  (weak credentials)            -> host port 5432
+#   - ftp-server   : ProFTPD 1.3.5, CVE-2015-3306 (mod_copy)   -> host port 21 (+ passive 30000-30009)
+#   - ssh-decoy    : hardened OpenSSH (the red herring)        -> host port 2222
+#
+# DO NOT expose this to the public internet. Run it only on an isolated lab
+# network / host that you control.
+# ---------------------------------------------------------------------------
+
+services:
+  cpr-register:
+    build: ./cpr-register
+    image: forgotten/cpr-register
+    container_name: cpr-register
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: "123456"
+      POSTGRES_DB: cpr
+    ports:
+      - "5432:5432"
+    networks:
+      - forgotten-net
+    restart: unless-stopped
+
+  ftp-server:
+    build: ./ftp-server
+    image: forgotten/ftp-server
+    container_name: ftp-server
+    ports:
+      - "21:21"
+      - "30000-30009:30000-30009"   # passive data ports
+    networks:
+      - forgotten-net
+    restart: unless-stopped
+
+  ssh-decoy:
+    build: ./ssh-decoy
+    image: forgotten/ssh-decoy
+    container_name: ssh-decoy
+    ports:
+      - "2222:22"
+    networks:
+      - forgotten-net
+    restart: unless-stopped
+
+networks:
+  forgotten-net:
+    driver: bridge

@@ -1,0 +1,9 @@
+INTAKE NOTES (scanned, OCR)
+===========================
+Ward: General Medicine
+
+- Mette Jensen (230982-5678): annual check-up, no findings.
+- Sofie Andersen (290701-4321): referred for physiotherapy.
+- Emil Christensen (040488-1111): prescription renewal.
+
+Reminder to staff: do NOT email CPR numbers. Use the internal file server.
