@@ -18,7 +18,14 @@ printf "host all all 0.0.0.0/0 password\n" >> "$PGDATA/pg_hba.conf"
 
 psql -v ON_ERROR_STOP=1 --command "CREATE USER admin WITH SUPERUSER PASSWORD '123456';"
 createdb -O admin cpr
+
+# Seed the thematic "cpr" database...
 psql -v ON_ERROR_STOP=1 -d cpr -f /tmp/cpr-init/01-schema.sql
 psql -v ON_ERROR_STOP=1 -d cpr -f /tmp/cpr-init/02-seed.sql
+
+# ...and also the default "postgres" database, so a bare connection (many GUI
+# tools / `-d postgres`) sees the data too, not an empty db.
+psql -v ON_ERROR_STOP=1 -d postgres -f /tmp/cpr-init/01-schema.sql
+psql -v ON_ERROR_STOP=1 -d postgres -f /tmp/cpr-init/02-seed.sql
 
 "$PGBIN/pg_ctl" -D "$PGDATA" -m fast -w stop
